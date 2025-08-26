@@ -1,0 +1,53 @@
+name: Build Android (APK)
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true  # 大きいアセット/LFS 対応
+
+      - name: Cache Library
+        uses: actions/cache@v4
+        with:
+          path: Pokemon Unity/Library
+          key: Library-${{ runner.os }}-${{ hashFiles('Pokemon Unity/**/Packages/manifest.json') }}
+          restore-keys: |
+            Library-${{ runner.os }}-
+
+      # ★ README の指示に合わせて DB を Assets/Data へコピー（Android でも必要）
+      - name: Prepare Veekun DB
+        run: |
+          mkdir -p "Pokemon Unity/Assets/Data"
+          cp "veekun-pokedex.sqlite" "Pokemon Unity/Assets/Data/veekun-pokedex.sqlite"
+
+      # Android ビルド（game-ci）
+      - name: Build Unity Android
+        uses: game-ci/unity-builder@v4
+        with:
+          # ← Unity の正確なバージョンに合わせてください（下の「0. Unity バージョン確認」を参照）
+          unityVersion: 2021.3.20f1
+          projectPath: Pokemon Unity
+          targetPlatform: Android
+          buildName: PokemonUnity
+          buildPath: build/android
+          # エディタースクリプトでシーンと出力先を制御
+          customParameters: -executeMethod CI.BuildAndroid.PerformBuild
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/android/*.apk
